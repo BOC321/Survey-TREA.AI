@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Splitting & Lazy Loading Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+        }
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Code Splitting & Lazy Loading Test</h1>
+    
+    <div class="test-container">
+        <h2>📊 Chart.js Lazy Loading Test</h2>
+        <p>This test demonstrates dynamic loading of Chart.js only when needed.</p>
+        
+        <button id="load-chartjs" class="test-button">Load Chart.js</button>
+        <button id="create-chart" class="test-button" disabled>Create Chart</button>
+        <button id="check-chartjs" class="test-button">Check Chart.js Status</button>
+        
+        <div id="chartjs-status" class="status" style="display: none;"></div>
+        <div id="chart-container" class="chart-container" style="display: none;">
+            <canvas id="test-chart" width="400" height="200"></canvas>
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <h2>📄 jsPDF Lazy Loading Test</h2>
+        <p>This test demonstrates dynamic loading of jsPDF only when needed.</p>
+        
+        <button id="load-jspdf" class="test-button">Load jsPDF</button>
+        <button id="generate-pdf" class="test-button" disabled>Generate PDF</button>
+        <button id="check-jspdf" class="test-button">Check jsPDF Status</button>
+        
+        <div id="jspdf-status" class="status" style="display: none;"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>⚡ Performance Metrics</h2>
+        <div class="performance-metrics">
+            <div class="metric">
+                <div class="metric-value" id="initial-load-time">-</div>
+                <div class="metric-label">Initial Load Time (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="chartjs-load-time">-</div>
+                <div class="metric-label">Chart.js Load Time (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="jspdf-load-time">-</div>
+                <div class="metric-label">jsPDF Load Time (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="memory-usage">-</div>
+                <div class="metric-label">Memory Usage (MB)</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <h2>🔄 Batch Loading Test</h2>
+        <p>Test loading multiple libraries at once.</p>
+        
+        <button id="load-all" class="test-button">Load All Libraries</button>
+        <button id="preload-idle" class="test-button">Preload on Idle</button>
+        
+        <div id="batch-status" class="status" style="display: none;"></div>
+    </div>
+
+    <!-- Load ChartLoader module -->
+    <script src="/modules/ChartLoader.js"></script>
+    
+    <script>
+        // Performance tracking
+        const performanceMetrics = {
+            initialLoadTime: performance.now(),
+            chartjsLoadTime: null,
+            jspdfLoadTime: null
+        };
+        
+        // Update initial load time
+        document.getElementById('initial-load-time').textContent = Math.round(performanceMetrics.initialLoadTime);
+        
+        // Update memory usage periodically
+        function updateMemoryUsage() {
+            if (performance.memory) {
+                const memoryMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+                document.getElementById('memory-usage').textContent = memoryMB;
+            }
+        }
+        setInterval(updateMemoryUsage, 1000);
+        updateMemoryUsage();
+        
+        // Chart.js tests
+        document.getElementById('load-chartjs').addEventListener('click', async () => {
+            const button = document.getElementById('load-chartjs');
+            const status = document.getElementById('chartjs-status');
+            const createButton = document.getElementById('create-chart');
+            
+            button.disabled = true;
+            status.style.display = 'block';
+            status.className = 'status loading';
+            status.textContent = 'Loading Chart.js...';
+            
+            const startTime = performance.now();
+            
+            try {
+                await window.ChartLoader.loadChartJS();
+                const loadTime = Math.round(performance.now() - startTime);
+                performanceMetrics.chartjsLoadTime = loadTime;
+                document.getElementById('chartjs-load-time').textContent = loadTime;
+                
+                status.className = 'status success';
+                status.textContent = `Chart.js loaded successfully in ${loadTime}ms`;
+                createButton.disabled = false;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `Failed to load Chart.js: ${error.message}`;
+            }
+            
+            button.disabled = false;
+        });
+        
+        document.getElementById('create-chart').addEventListener('click', () => {
+            const container = document.getElementById('chart-container');
+            const canvas = document.getElementById('test-chart');
+            
+            if (typeof Chart !== 'undefined') {
+                container.style.display = 'block';
+                
+                new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Loaded Dynamically', 'Chart.js', 'Lazy Loading'],
+                        datasets: [{
+                            data: [30, 40, 30],
+                            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Lazy Loaded Chart.js Demo'
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        
+        document.getElementById('check-chartjs').addEventListener('click', () => {
+            const status = document.getElementById('chartjs-status');
+            status.style.display = 'block';
+            
+            if (typeof Chart !== 'undefined') {
+                status.className = 'status success';
+                status.textContent = `Chart.js is loaded (version: ${Chart.version || 'unknown'})`;
+            } else {
+                status.className = 'status error';
+                status.textContent = 'Chart.js is not loaded';
+            }
+        });
+        
+        // jsPDF tests
+        document.getElementById('load-jspdf').addEventListener('click', async () => {
+            const button = document.getElementById('load-jspdf');
+            const status = document.getElementById('jspdf-status');
+            const generateButton = document.getElementById('generate-pdf');
+            
+            button.disabled = true;
+            status.style.display = 'block';
+            status.className = 'status loading';
+            status.textContent = 'Loading jsPDF...';
+            
+            const startTime = performance.now();
+            
+            try {
+                await window.ChartLoader.loadjsPDF();
+                const loadTime = Math.round(performance.now() - startTime);
+                performanceMetrics.jspdfLoadTime = loadTime;
+                document.getElementById('jspdf-load-time').textContent = loadTime;
+                
+                status.className = 'status success';
+                status.textContent = `jsPDF loaded successfully in ${loadTime}ms`;
+                generateButton.disabled = false;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `Failed to load jsPDF: ${error.message}`;
+            }
+            
+            button.disabled = false;
+        });
+        
+        document.getElementById('generate-pdf').addEventListener('click', () => {
+            if (window.jspdf && window.jspdf.jsPDF) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                doc.setFontSize(20);
+                doc.text('Lazy Loading Test Report', 20, 20);
+                
+                doc.setFontSize(12);
+                doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 30);
+                doc.text('This PDF was generated using dynamically loaded jsPDF!', 20, 40);
+                
+                doc.text('Performance Metrics:', 20, 60);
+                doc.text(`Initial Load Time: ${Math.round(performanceMetrics.initialLoadTime)}ms`, 20, 70);
+                if (performanceMetrics.chartjsLoadTime) {
+                    doc.text(`Chart.js Load Time: ${performanceMetrics.chartjsLoadTime}ms`, 20, 80);
+                }
+                if (performanceMetrics.jspdfLoadTime) {
+                    doc.text(`jsPDF Load Time: ${performanceMetrics.jspdfLoadTime}ms`, 20, 90);
+                }
+                
+                doc.save('lazy-loading-test.pdf');
+            }
+        });
+        
+        document.getElementById('check-jspdf').addEventListener('click', () => {
+            const status = document.getElementById('jspdf-status');
+            status.style.display = 'block';
+            
+            if (window.jspdf && window.jspdf.jsPDF) {
+                status.className = 'status success';
+                status.textContent = 'jsPDF is loaded and ready';
+            } else {
+                status.className = 'status error';
+                status.textContent = 'jsPDF is not loaded';
+            }
+        });
+        
+        // Batch loading tests
+        document.getElementById('load-all').addEventListener('click', async () => {
+            const button = document.getElementById('load-all');
+            const status = document.getElementById('batch-status');
+            
+            button.disabled = true;
+            status.style.display = 'block';
+            status.className = 'status loading';
+            status.textContent = 'Loading all libraries...';
+            
+            const startTime = performance.now();
+            
+            try {
+                await window.ChartLoader.loadMultiple(['chartjs', 'jspdf']);
+                const loadTime = Math.round(performance.now() - startTime);
+                
+                status.className = 'status success';
+                status.textContent = `All libraries loaded successfully in ${loadTime}ms`;
+                
+                // Enable other buttons
+                document.getElementById('create-chart').disabled = false;
+                document.getElementById('generate-pdf').disabled = false;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `Failed to load libraries: ${error.message}`;
+            }
+            
+            button.disabled = false;
+        });
+        
+        document.getElementById('preload-idle').addEventListener('click', () => {
+            const status = document.getElementById('batch-status');
+            status.style.display = 'block';
+            status.className = 'status loading';
+            status.textContent = 'Preloading libraries on idle...';
+            
+            window.ChartLoader.preloadOnIdle(['chartjs', 'jspdf'])
+                .then(() => {
+                    status.className = 'status success';
+                    status.textContent = 'Libraries preloaded successfully during idle time';
+                    
+                    // Enable other buttons
+                    document.getElementById('create-chart').disabled = false;
+                    document.getElementById('generate-pdf').disabled = false;
+                })
+                .catch(error => {
+                    status.className = 'status error';
+                    status.textContent = `Preload failed: ${error.message}`;
+                });
+        });
+        
+        console.log('🚀 Lazy loading test page initialized');
+        console.log('ChartLoader available:', typeof window.ChartLoader !== 'undefined');
+    </script>
+</body>
+</html>

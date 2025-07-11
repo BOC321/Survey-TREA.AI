@@ -1,0 +1,10 @@
+# Ignore artifacts:
+package-lock.json
+node_modules
+dist
+
+# Ignore backups
+backup-*
+
+# Ignore test results
+test-results/

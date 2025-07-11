@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Analytics API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Analytics Endpoints</h2>
+        <button onclick="testResponses()">Test /analytics/responses</button>
+        <button onclick="testEmails()">Test /analytics/emails</button>
+        <button onclick="testBoth()">Test Both Endpoints</button>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        async function testResponses() {
+            log('Testing /analytics/responses endpoint...');
+            try {
+                const response = await fetch('/analytics/responses');
+                log(`Response status: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                log(`Success! Received ${data.length} responses`, 'success');
+                log(`Sample data: ${JSON.stringify(data[0], null, 2)}`);
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        }
+
+        async function testEmails() {
+            log('Testing /analytics/emails endpoint...');
+            try {
+                const response = await fetch('/analytics/emails');
+                log(`Response status: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                log(`Success! Received ${data.length} emails`, 'success');
+                log(`Sample data: ${JSON.stringify(data[0], null, 2)}`);
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        }
+
+        async function testBoth() {
+            log('Testing both endpoints sequentially...');
+            await testResponses();
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            await testEmails();
+            log('Both tests completed!');
+        }
+
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            log('Page loaded, starting automatic test...');
+            setTimeout(testBoth, 1000);
+        });
+    </script>
+</body>
+</html>

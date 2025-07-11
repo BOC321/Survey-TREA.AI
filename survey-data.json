@@ -1,0 +1,148 @@
+{
+    "title": "The Answer Trap Risk Profile Survey",
+    "banner": "",
+    "introText": "Welcome to The Answer Trap Risk Profile Survey. This assessment will help you understand your decision-making patterns and risk tolerance. Please answer all questions honestly for the most accurate results.",
+    "introQuestions": [
+        {
+            "id": 1,
+            "text": "What is your current role?",
+            "options": ["Manager", "Team Lead", "Individual Contributor", "Executive", "Other"]
+        },
+        {
+            "id": 2,
+            "text": "How many years of experience do you have?",
+            "options": ["0-2 years", "3-5 years", "6-10 years", "11-15 years", "15+ years"]
+        }
+    ],
+    "categories": [
+        {
+            "id": 1,
+            "name": "Decision Making",
+            "description": "This category evaluates your approach to making decisions and problem-solving strategies.",
+            "questions": [
+                {
+                    "id": 101,
+                    "text": "When faced with a complex decision, I tend to:",
+                    "options": [
+                        { "text": "Analyze all available data thoroughly", "score": 1 },
+                        { "text": "Seek input from multiple stakeholders", "score": 2 },
+                        { "text": "Trust my gut instinct", "score": 3 }
+                    ]
+                },
+                {
+                    "id": 102,
+                    "text": "I prefer to make decisions:",
+                    "options": [
+                        { "text": "Quickly to maintain momentum", "score": 3 },
+                        { "text": "After careful consideration", "score": 1 },
+                        { "text": "With team consensus", "score": 2 }
+                    ]
+                }
+            ],
+            "scoringRanges": [
+                {
+                    "id": 1,
+                    "minScore": 0,
+                    "maxScore": 40,
+                    "title": "Analytical",
+                    "description": "You prefer thorough analysis and careful consideration in decision-making.",
+                    "color": "#2ecc71"
+                },
+                {
+                    "id": 2,
+                    "minScore": 41,
+                    "maxScore": 70,
+                    "title": "Collaborative",
+                    "description": "You balance analysis with team input and consensus-building.",
+                    "color": "#f39c12"
+                },
+                {
+                    "id": 3,
+                    "minScore": 71,
+                    "maxScore": 100,
+                    "title": "Intuitive",
+                    "description": "You trust your instincts and prefer quick, decisive action.",
+                    "color": "#e74c3c"
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Risk Assessment",
+            "description": "This category assesses how you evaluate and respond to uncertainty and potential risks.",
+            "questions": [
+                {
+                    "id": 201,
+                    "text": "When evaluating risks, I focus on:",
+                    "options": [
+                        { "text": "Potential negative outcomes", "score": 1 },
+                        { "text": "Balancing risks and opportunities", "score": 2 },
+                        { "text": "Potential rewards and benefits", "score": 3 }
+                    ]
+                },
+                {
+                    "id": 202,
+                    "text": "My approach to uncertainty is:",
+                    "options": [
+                        { "text": "Cautious and methodical", "score": 1 },
+                        { "text": "Balanced and adaptive", "score": 2 },
+                        { "text": "Optimistic and action-oriented", "score": 3 }
+                    ]
+                }
+            ],
+            "scoringRanges": [
+                {
+                    "id": 4,
+                    "minScore": 0,
+                    "maxScore": 40,
+                    "title": "Risk Averse",
+                    "description": "You are cautious and focus on potential negative outcomes when assessing risks.",
+                    "color": "#2ecc71"
+                },
+                {
+                    "id": 5,
+                    "minScore": 41,
+                    "maxScore": 70,
+                    "title": "Risk Balanced",
+                    "description": "You take a balanced approach, weighing both risks and opportunities.",
+                    "color": "#f39c12"
+                },
+                {
+                    "id": 6,
+                    "minScore": 71,
+                    "maxScore": 100,
+                    "title": "Risk Seeking",
+                    "description": "You are optimistic and focus on potential rewards when evaluating uncertainty.",
+                    "color": "#e74c3c"
+                }
+            ]
+        }
+    ],
+    "scoringRanges": [
+        {
+            "id": 1,
+            "minScore": 0,
+            "maxScore": 40,
+            "title": "Low Risk",
+            "description": "You tend to be very cautious and methodical in your approach to decision-making.",
+            "color": "#2ecc71"
+        },
+        {
+            "id": 2,
+            "minScore": 41,
+            "maxScore": 70,
+            "title": "Moderate Risk",
+            "description": "You balance caution with opportunity, taking calculated risks when appropriate.",
+            "color": "#f39c12"
+        },
+        {
+            "id": 3,
+            "minScore": 71,
+            "maxScore": 100,
+            "title": "High Risk",
+            "description": "You are comfortable with uncertainty and tend to take bold actions.",
+            "color": "#e74c3c"
+        }
+    ],
+    "emailSettings": {}
+}

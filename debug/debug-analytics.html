@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Debug Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js" 
+        integrity="sha256-6L+3b6wZlTGzLvq9+pa8dTTKMHqagnZhvf8VfLtXaQU=" 
+        crossorigin="anonymous"></script>
+</head>
+<body>
+    <h1>Analytics Debug Test</h1>
+    <div id="debug-output"></div>
+    
+    <script>
+        const debugOutput = document.getElementById('debug-output');
+        
+        function log(message) {
+            console.log(message);
+            debugOutput.innerHTML += '<p>' + message + '</p>';
+        }
+        
+        // Test Chart.js loading
+        log('Testing Chart.js availability: ' + (typeof Chart !== 'undefined' ? 'LOADED' : 'NOT LOADED'));
+        
+        // Test API endpoints
+        async function testEndpoints() {
+            try {
+                log('Testing /analytics/responses endpoint...');
+                const responsesResponse = await fetch('/analytics/responses');
+                const responsesData = await responsesResponse.json();
+                log('Responses endpoint: SUCCESS - ' + responsesData.length + ' items');
+                
+                log('Testing /analytics/emails endpoint...');
+                const emailsResponse = await fetch('/analytics/emails');
+                const emailsData = await emailsResponse.json();
+                log('Emails endpoint: SUCCESS - ' + emailsData.length + ' items');
+                
+                // Test basic chart creation
+                log('Testing basic chart creation...');
+                const canvas = document.createElement('canvas');
+                canvas.id = 'test-chart';
+                canvas.width = 400;
+                canvas.height = 200;
+                document.body.appendChild(canvas);
+                
+                const chart = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Test 1', 'Test 2'],
+                        datasets: [{
+                            label: 'Test Data',
+                            data: [10, 20],
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+                
+                log('Chart creation: SUCCESS');
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+            }
+        }
+        
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', testEndpoints);
+    </script>
+</body>
+</html>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survey Analytics Dashboard</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/analytics.css">
+    <script>
+        // Aggressively unregister service workers to ensure the latest assets are loaded.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            }).catch(function(err) {
+                console.log('Service Worker unregistration failed: ', err);
+            });
+        }
+    </script>
+    <style>
+        /* Validation styles */
+        .validation-error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .filter-input.invalid,
+        input.invalid {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+        }
+
+        .filter-group {
+            margin-bottom: 15px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+    </style>
+    <!-- Chart.js and jsPDF will be loaded dynamically when needed -->
+</head>
+<body>
+    <div class="analytics-container">
+        <header class="analytics-header">
+            <h1>📊 Survey Analytics Dashboard</h1>
+            <div class="header-actions">
+                <button onclick="refreshData()" class="refresh-btn">🔄 Refresh Data</button>
+                <div class="export-dropdown">
+                    <button class="export-btn dropdown-toggle">📄 Export ▼</button>
+                    <div class="export-menu">
+                        <button onclick="exportToPDF()">📄 PDF Report</button>
+                        <button onclick="exportToJSON()">📋 JSON Data</button>
+                        <button onclick="exportToCSV()">📊 CSV Data</button>
+                        <button onclick="exportEmailList()">📧 Email List</button>
+                    </div>
+                </div>
+                <button onclick="window.close()" class="close-btn">✖ Close</button>
+            </div>
+        </header>
+
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <h3>📋 Filters & Options</h3>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="date-range">Date Range:</label>
+                    <select id="date-range">
+                        <option value="all">All Time</option>
+                        <option value="7">Last 7 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="score-range">Score Range:</label>
+                    <select id="score-range">
+                        <option value="all">All Scores</option>
+                        <option value="high">High Scores (80-100%)</option>
+                        <option value="medium">Medium Scores (50-79%)</option>
+                        <option value="low">Low Scores (0-49%)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="survey-version">Survey Version:</label>
+                    <select id="survey-version">
+                        <option value="all">All Versions</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <button onclick="applyFilters()" class="apply-filters-btn">Apply Filters</button>
+                    <button onclick="resetFilters()" class="reset-filters-btn">Reset</button>
+                </div>
+            </div>
+            <div class="custom-date-range" id="custom-date-range" style="display: none;">
+                <div class="filter-group">
+                    <label for="start-date">Start Date:</label>
+                    <input type="date" id="start-date" class="filter-input" 
+                           min="1900-01-01" 
+                           max="2124-12-31"
+                           onchange="validateDateInput(this)">
+                    <span class="validation-error" id="start-date-error"></span>
+                </div>
+                <div class="filter-group">
+                    <label for="end-date">End Date:</label>
+                    <input type="date" id="end-date" class="filter-input" 
+                           min="1900-01-01" 
+                           max="2124-12-31"
+                           onchange="validateDateInput(this)">
+                    <span class="validation-error" id="end-date-error"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Metrics Section -->
+        <div class="metrics-section">
+            <h3>📈 Key Metrics</h3>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon">📝</div>
+                    <div class="metric-content">
+                        <h4>Total Responses</h4>
+                        <div class="metric-value" id="total-responses">0</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">✅</div>
+                    <div class="metric-content">
+                        <h4>Completion Rate</h4>
+                        <div class="metric-value" id="completion-rate">0%</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">📧</div>
+                    <div class="metric-content">
+                        <h4>Email Requests</h4>
+                        <div class="metric-value" id="email-requests">0%</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">📊</div>
+                    <div class="metric-content">
+                        <h4>Average Score</h4>
+                        <div class="metric-value" id="average-score">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <div class="chart-row">
+                <div class="chart-container">
+                    <h3>📊 Score Distribution</h3>
+                    <canvas id="scoreDistributionChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>📈 Responses Over Time</h3>
+                    <canvas id="responsesTimeChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-row">
+                <div class="chart-container">
+                    <h3>🎯 Category Performance</h3>
+                    <canvas id="categoryPerformanceChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>🌍 Geographic Distribution</h3>
+                    <div id="geographic-data" class="geographic-container">
+                        <!-- Geographic data will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Tables Section -->
+        <div class="tables-section">
+            <h3>📋 Detailed Data</h3>
+            <div class="table-tabs">
+                <button onclick="showTable('responses')" class="tab-btn active">Recent Responses</button>
+                <button onclick="showTable('emails')" class="tab-btn">Email Recipients</button>
+                <button onclick="showTable('categories')" class="tab-btn">Category Analysis</button>
+            </div>
+            
+            <div id="responses-table" class="data-table active">
+                <h4>Recent Survey Responses</h4>
+                <div class="table-container">
+                    <table id="responses-data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Survey Title</th>
+                                <th>Total Score</th>
+                                <th>Percentage</th>
+                                <th>Email Sent</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="emails-table" class="data-table">
+                <h4>Email Recipients & Mailing Lists</h4>
+                <div class="mailing-list-actions">
+                    <button onclick="generateMailingList('all')" class="mailing-btn">📧 All Recipients</button>
+                    <button onclick="generateMailingList('high')" class="mailing-btn">🏆 High Scorers</button>
+                    <button onclick="generateMailingList('low')" class="mailing-btn">📈 Low Scorers</button>
+                    <button onclick="exportEmailList()" class="export-emails-btn">💾 Export Email List</button>
+                </div>
+                <div class="table-container">
+                    <table id="emails-data-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Date</th>
+                                <th>Score</th>
+                                <th>Survey Title</th>
+                                <th>Selected</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Email data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="categories-table" class="data-table">
+                <h4>Category Performance Analysis</h4>
+                <div class="table-container">
+                    <table id="categories-data-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Average Score</th>
+                                <th>Response Count</th>
+                                <th>Performance</th>
+                                <th>Correlation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Category data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="loading-indicator" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading analytics data...</p>
+        </div>
+    </div>
+
+    <!-- Load configuration first -->
+    <script src="/config/analytics.config.js"></script>
+    
+    <!-- Load modules in dependency order -->
+    <script src="/modules/ChartLoader.js"></script>
+    <script src="/modules/SecurityValidator.js"></script>
+    <script src="/modules/DataService.js"></script>
+    <script src="/modules/ChartManager.js"></script>
+    <script src="/modules/UIController.js"></script>
+    <script src="/modules/ExportService.js"></script>
+    
+    <!-- Load main analytics dashboard -->
+    <script src="/analytics.js?v=3.0"></script>
+    
+    <script>
+        // Debug script to check modular loading
+        console.log('Analytics HTML loaded with modular structure');
+        
+        // Client-side validation functions
+        function validateDateInput(input) {
+            const errorElement = document.getElementById(input.id + '-error');
+            const value = input.value;
+            
+            // Clear previous error
+            errorElement.textContent = '';
+            input.classList.remove('invalid');
+            
+            if (!value) {
+                return true; // Empty is valid for optional fields
+            }
+            
+            const date = new Date(value);
+            const minDate = new Date('1900-01-01');
+            const maxDate = new Date('2124-12-31');
+            
+            if (isNaN(date.getTime())) {
+                showValidationError(input, errorElement, 'Invalid date format');
+                return false;
+            }
+            
+            if (date < minDate || date > maxDate) {
+                showValidationError(input, errorElement, 'Date must be between 1900 and 2124');
+                return false;
+            }
+            
+            // Validate date range if both dates are filled
+            validateDateRange();
+            return true;
+        }
+        
+        function validateDateRange() {
+            const startInput = document.getElementById('start-date');
+            const endInput = document.getElementById('end-date');
+            const startError = document.getElementById('start-date-error');
+            const endError = document.getElementById('end-date-error');
+            
+            if (!startInput.value || !endInput.value) {
+                return true;
+            }
+            
+            const startDate = new Date(startInput.value);
+            const endDate = new Date(endInput.value);
+            
+            if (startDate > endDate) {
+                showValidationError(endInput, endError, 'End date must be after start date');
+                return false;
+            }
+            
+            // Check for reasonable date range (not more than 10 years)
+            const maxRangeMs = 10 * 365 * 24 * 60 * 60 * 1000;
+            if (endDate - startDate > maxRangeMs) {
+                showValidationError(endInput, endError, 'Date range cannot exceed 10 years');
+                return false;
+            }
+            
+            // Clear errors if validation passes
+            clearValidationError(startInput, startError);
+            clearValidationError(endInput, endError);
+            return true;
+        }
+        
+        function showValidationError(input, errorElement, message) {
+            input.classList.add('invalid');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+        
+        function clearValidationError(input, errorElement) {
+            input.classList.remove('invalid');
+            errorElement.textContent = '';
+            errorElement.style.display = 'none';
+        }
+        
+        // Enhanced email validation for export forms
+        function validateEmailInput(input) {
+            const value = input.value.trim();
+            const errorElement = input.parentElement.querySelector('.validation-error');
+            
+            if (!value) {
+                clearValidationError(input, errorElement);
+                return true;
+            }
+            
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            
+            if (!emailRegex.test(value) || value.length > 254) {
+                showValidationError(input, errorElement, 'Please enter a valid email address');
+                return false;
+            }
+            
+            clearValidationError(input, errorElement);
+            return true;
+        }
+    </script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        // Register service worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New version available
+                                    if (confirm('A new version is available. Reload to update?')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+        
+        // Analytics-specific cache management
+        window.clearAnalyticsCache = function() {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const channel = new MessageChannel();
+                channel.port1.onmessage = function(event) {
+                    if (event.data.success) {
+                        alert('Analytics cache cleared successfully!');
+                        window.location.reload();
+                    }
+                };
+                navigator.serviceWorker.controller.postMessage(
+                    { type: 'CLEAR_ANALYTICS_CACHE' }, 
+                    [channel.port2]
+                );
+            }
+        };
+        
+        // Add cache status indicator
+        window.showCacheStatus = function() {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const channel = new MessageChannel();
+                channel.port1.onmessage = function(event) {
+                    const status = event.data;
+                    let message = 'Cache Status:\n';
+                    for (const [cacheName, count] of Object.entries(status)) {
+                        message += `${cacheName}: ${count} items\n`;
+                    }
+                    alert(message);
+                };
+                navigator.serviceWorker.controller.postMessage(
+                    { type: 'GET_CACHE_STATUS' }, 
+                    [channel.port2]
+                );
+            }
+        };
+        
+        // Add offline indicator
+        window.addEventListener('online', () => {
+            console.log('Back online - refreshing data');
+            if (window.dashboard && window.dashboard.refreshData) {
+                window.dashboard.refreshData();
+            }
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log('Gone offline - using cached data');
+        });
+    </script>
+</body>
+</html>

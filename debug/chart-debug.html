@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Debug Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js" 
+        integrity="sha256-6L+3b6wZlTGzLvq9+pa8dTTKMHqagnZhvf8VfLtXaQU=" 
+        crossorigin="anonymous"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .chart-container { width: 400px; height: 300px; margin: 20px 0; }
+        #log { background: #f0f0f0; padding: 10px; margin: 10px 0; white-space: pre-wrap; font-family: monospace; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Chart.js Debug Test</h1>
+    <div id="log"></div>
+    
+    <div class="test-section">
+        <h3>Test 1: Basic Chart</h3>
+        <div class="chart-container">
+            <canvas id="testChart1" width="400" height="300"></canvas>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: Doughnut Chart (like Score Distribution)</h3>
+        <div class="chart-container">
+            <canvas id="testChart2" width="400" height="300"></canvas>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: API Data Test</h3>
+        <div id="apiResults"></div>
+    </div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('log');
+            const className = type === 'error' ? 'error' : (type === 'success' ? 'success' : '');
+            logElement.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            console.log(message);
+        }
+        
+        log('Starting Chart.js debug test...');
+        
+        // Test 1: Check Chart.js availability
+        if (typeof Chart !== 'undefined') {
+            log('✅ Chart.js loaded successfully: ' + Chart.version, 'success');
+        } else {
+            log('❌ Chart.js not loaded!', 'error');
+        }
+        
+        // Test 2: Create basic chart
+        try {
+            const ctx1 = document.getElementById('testChart1').getContext('2d');
+            const chart1 = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: ['Red', 'Blue', 'Yellow', 'Green'],
+                    datasets: [{
+                        label: 'Test Data',
+                        data: [12, 19, 3, 5],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            log('✅ Basic bar chart created successfully', 'success');
+        } catch (error) {
+            log('❌ Failed to create basic chart: ' + error.message, 'error');
+        }
+        
+        // Test 3: Create doughnut chart (like analytics)
+        try {
+            const ctx2 = document.getElementById('testChart2').getContext('2d');
+            const chart2 = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%', '100%+'],
+                    datasets: [{
+                        data: [2, 5, 8, 12, 15, 3],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+            log('✅ Doughnut chart created successfully', 'success');
+        } catch (error) {
+            log('❌ Failed to create doughnut chart: ' + error.message, 'error');
+        }
+        
+        // Test 4: API endpoints
+        async function testAPIs() {
+            const apiResults = document.getElementById('apiResults');
+            
+            try {
+                log('Testing /analytics/responses API...');
+                const resp1 = await fetch('/analytics/responses');
+                if (resp1.ok) {
+                    const data1 = await resp1.json();
+                    log(`✅ Responses API: ${data1.length} items`, 'success');
+                    apiResults.innerHTML += `<p><strong>Responses API:</strong> ${data1.length} items</p>`;
+                    if (data1.length > 0) {
+                        apiResults.innerHTML += `<p><strong>Sample:</strong> <pre>${JSON.stringify(data1[0], null, 2)}</pre></p>`;
+                    }
+                } else {
+                    log(`❌ Responses API failed: ${resp1.status}`, 'error');
+                }
+                
+                log('Testing /analytics/emails API...');
+                const resp2 = await fetch('/analytics/emails');
+                if (resp2.ok) {
+                    const data2 = await resp2.json();
+                    log(`✅ Emails API: ${data2.length} items`, 'success');
+                    apiResults.innerHTML += `<p><strong>Emails API:</strong> ${data2.length} items</p>`;
+                } else {
+                    log(`❌ Emails API failed: ${resp2.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log('❌ API test failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Run API tests after a short delay
+        setTimeout(testAPIs, 1000);
+    </script>
+</body>
+</html>

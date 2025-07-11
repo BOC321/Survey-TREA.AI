@@ -1,6 +1,18 @@
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const validator = require('validator');
+const crypto = require('crypto');
+
+// Generate nonce for CSP
+const generateNonce = () => {
+    return crypto.randomBytes(16).toString('base64');
+};
+
+// Middleware to add nonce to response locals
+const addNonce = (req, res, next) => {
+    res.locals.nonce = generateNonce();
+    next();
+};
 
 // Rate limiting configuration
 const createRateLimit = (windowMs, max, message) => {
@@ -136,32 +148,58 @@ const validateEmailConfig = (config) => {
     return { valid: true };
 };
 
-// Security middleware
-const securityMiddleware = [
-    helmet({
-        contentSecurityPolicy: {
-            directives: {
-                defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'"],
-                scriptSrc: ["'self'", "'unsafe-inline'"],
-                scriptSrcAttr: ["'unsafe-inline'"],
-                imgSrc: ["'self'", "data:"],
-                connectSrc: ["'self'"],
-                fontSrc: ["'self'"],
-                objectSrc: ["'none'"],
-                mediaSrc: ["'self'"],
-                frameSrc: ["'none'"]
-            }
-        },
-        crossOriginEmbedderPolicy: false
-    })
-];
+// Dynamic CSP middleware with nonce
+const createCSPMiddleware = () => {
+    return (req, res, next) => {
+        const nonce = res.locals.nonce;
+        
+        helmet({
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    styleSrc: [
+                        "'self'", 
+                        `'nonce-${nonce}'`,
+                        "https://fonts.googleapis.com"
+                    ],
+                    scriptSrc: [
+                        "'self'", 
+                        `'nonce-${nonce}'`,
+                        "https://cdn.jsdelivr.net",
+                        "https://cdnjs.cloudflare.com",
+                        // SRI hashes for specific CDN resources
+                        "'sha256-uQj9Jg+YnOGjTdJXRqRlUgbvP6xM6/M8LvXvOz3Qx8w='" // Chart.js 4.4.1
+                    ],
+                    imgSrc: ["'self'", "data:"],
+                    connectSrc: [
+                        "'self'",
+                        "https://cdn.jsdelivr.net",
+                        "https://cdnjs.cloudflare.com",
+                        "https://fonts.googleapis.com",
+                        "https://fonts.gstatic.com"
+                    ],
+                    fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+                    objectSrc: ["'none'"],
+                    mediaSrc: ["'self'"],
+                    frameSrc: ["'none'"]
+                }
+            },
+            crossOriginEmbedderPolicy: false
+        })(req, res, next);
+    };
+};
+
+// Security middleware array
+const securityMiddleware = [addNonce, createCSPMiddleware()];
 
 // Input sanitization middleware
 const sanitizeInput = (req, res, next) => {
     const sanitizeObject = (obj) => {
         if (typeof obj === 'string') {
             return validator.escape(obj.trim());
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(item => sanitizeObject(item));
         }
         if (typeof obj === 'object' && obj !== null) {
             const sanitized = {};
@@ -189,5 +227,7 @@ module.exports = {
     validateSurveyResults,
     validateEmailConfig,
     securityMiddleware,
-    sanitizeInput
+    sanitizeInput,
+    addNonce,
+    generateNonce
 };

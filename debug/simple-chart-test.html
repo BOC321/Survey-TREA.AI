@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chart Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js" 
+        integrity="sha256-6L+3b6wZlTGzLvq9+pa8dTTKMHqagnZhvf8VfLtXaQU=" 
+        crossorigin="anonymous"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .chart-container { width: 400px; height: 400px; margin: 20px 0; }
+        #log { background: #f0f0f0; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Simple Chart Test</h1>
+    <div id="log"></div>
+    
+    <div class="chart-container">
+        <canvas id="testChart"></canvas>
+    </div>
+    
+    <script>
+        function log(message) {
+            console.log(message);
+            document.getElementById('log').textContent += message + '\n';
+        }
+        
+        log('Starting chart test...');
+        
+        // Check Chart.js
+        if (typeof Chart !== 'undefined') {
+            log('✅ Chart.js loaded: ' + Chart.version);
+        } else {
+            log('❌ Chart.js not loaded');
+        }
+        
+        // Test simple chart creation
+        try {
+            const ctx = document.getElementById('testChart').getContext('2d');
+            log('✅ Canvas context obtained');
+            
+            const chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Red', 'Blue', 'Yellow'],
+                    datasets: [{
+                        data: [300, 50, 100],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            
+            log('✅ Chart created successfully');
+            
+        } catch (error) {
+            log('❌ Chart creation failed: ' + error.message);
+        }
+        
+        // Test API endpoints
+        async function testAPIs() {
+            try {
+                log('Testing /analytics/responses...');
+                const resp1 = await fetch('/analytics/responses');
+                const data1 = await resp1.json();
+                log('✅ Responses API: ' + data1.length + ' items');
+                log('Sample response: ' + JSON.stringify(data1[0], null, 2));
+                
+                log('Testing /analytics/emails...');
+                const resp2 = await fetch('/analytics/emails');
+                const data2 = await resp2.json();
+                log('✅ Emails API: ' + data2.length + ' items');
+                
+            } catch (error) {
+                log('❌ API test failed: ' + error.message);
+            }
+        }
+        
+        // Wait a bit then test APIs
+        setTimeout(testAPIs, 1000);
+    </script>
+</body>
+</html>
