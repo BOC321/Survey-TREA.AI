@@ -11,10 +11,12 @@ email-config.json
 generated-pdfs/
 shared-results/
 
-# Environment files
+# Environment variables
 .env
-.env.*
-!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Logs
 logs

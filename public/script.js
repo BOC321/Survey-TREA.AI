@@ -11,7 +11,7 @@ let surveyData = {
 };
 
 // Security and validation functions
-function validateEmailInput(input) {
+function validateEmailInput(input, isRequired = false) {
     const value = input.value.trim();
     const errorElement = document.getElementById(input.id + '-error');
     
@@ -19,6 +19,10 @@ function validateEmailInput(input) {
     clearValidationError(input, errorElement);
     
     if (!value) {
+        if (isRequired) {
+            showValidationError(input, errorElement, 'Email address is required');
+            return false;
+        }
         return true; // Empty is valid for optional fields
     }
     
@@ -30,59 +34,6 @@ function validateEmailInput(input) {
     }
     
     return true;
-}
-
-function validateFileUpload(input) {
-    const file = input.files[0];
-    const errorElement = document.getElementById(input.id + '-error');
-    
-    // Clear previous error
-    clearValidationError(input, errorElement);
-    
-    if (!file) {
-        return true; // No file selected is valid
-    }
-    
-    // Check file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-        showValidationError(input, errorElement, 'Please select a valid image file (JPEG, PNG, GIF, WebP)');
-        return false;
-    }
-    
-    // Check file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
-    if (file.size > maxSize) {
-        showValidationError(input, errorElement, 'File size must be less than 5MB');
-        return false;
-    }
-    
-    // Check image dimensions
-    const img = new Image();
-    img.onload = function() {
-        const maxWidth = 2000;
-        const maxHeight = 1000;
-        
-        if (this.width > maxWidth || this.height > maxHeight) {
-            showValidationError(input, errorElement, `Image dimensions must be less than ${maxWidth}x${maxHeight} pixels`);
-            return false;
-        }
-    };
-    img.src = URL.createObjectURL(file);
-    
-    return true;
-}
-
-function showValidationError(input, errorElement, message) {
-    input.classList.add('invalid');
-    errorElement.textContent = message;
-    errorElement.style.display = 'block';
-}
-
-function clearValidationError(input, errorElement) {
-    input.classList.remove('invalid');
-    errorElement.textContent = '';
-    errorElement.style.display = 'none';
 }
 
 // XSS protection function
@@ -98,6 +49,14 @@ function sanitizeInput(input) {
         .replace(/\//g, '&#x2F;');
 }
 
+function sanitizeHostInput(input) {
+    if (typeof input !== 'string') {
+        return '';
+    }
+    // Allow fqdn and ip address characters
+    return input.replace(/[^a-zA-Z0-9\.\-]/g, '');
+}
+
 let userResponses = {
     intro: {},
     categorical: {}
@@ -108,8 +67,15 @@ let allQuestions = [];
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async function() {
+    const emailForm = document.getElementById('admin-email');
+    if (emailForm) {
+        emailForm.addEventListener('submit', saveEmailSettings);
+    }
     console.log('DOM Content Loaded - Script is running');
     await loadSurveyData();
+    
+    // Initialize email template
+    await initializeEmailTemplate();
     
     // Check if this is a shared results link
     const urlParams = new URLSearchParams(window.location.search);
@@ -146,13 +112,13 @@ function showScreen(screenId) {
 }
 
 // Role selection
-function setRole(role) {
+async function setRole(role) {
     console.log('setRole called with role:', role);
     currentRole = role;
     if (role === 'admin') {
         console.log('Showing admin screen');
         showScreen('admin-screen');
-        initializeAdminInterface();
+        await initializeAdminInterface();
     } else {
         console.log('Showing survey screen');
         showScreen('survey-screen');
@@ -191,20 +157,40 @@ function openAnalyticsDashboard() {
     }
 }
 
-function initializeAdminInterface() {
+async function initializeAdminInterface() {
     // Load existing data into admin forms
     document.getElementById('survey-title-input').value = surveyData.title;
     document.getElementById('intro-text-input').value = surveyData.introText || '';
+    
+    // Show current banner if available
+    if (surveyData.banner) {
+        const bannerPreview = document.createElement('div');
+        bannerPreview.id = 'current-banner-preview';
+        bannerPreview.innerHTML = `
+            <div style="margin: 10px 0;">
+                <label>Current Banner:</label>
+                <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9;">
+                    <img src="${surveyData.banner}" alt="Current Banner" style="max-width: 200px; max-height: 100px; object-fit: contain;">
+                    <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Upload a new image to replace this banner</p>
+                </div>
+            </div>
+        `;
+        
+        // Insert before the banner upload input
+        const bannerUpload = document.getElementById('banner-upload');
+        const bannerGroup = bannerUpload.closest('.form-group');
+        bannerGroup.parentNode.insertBefore(bannerPreview, bannerGroup);
+    }
     
     // Initialize admin sections
     renderIntroQuestions();
     renderCategories();
     renderScoringRanges();
-    loadEmailSettings();
+    await loadEmailSettings();
 }
 
 // Basic settings
-function saveBasicSettings() {
+async function saveBasicSettings() {
     // Validate inputs before saving
     const titleInput = document.getElementById('survey-title-input');
     const bannerInput = document.getElementById('banner-upload');
@@ -217,27 +203,73 @@ function saveBasicSettings() {
     }
     
     // Validate file upload if present
-    if (bannerInput.files[0] && !validateFileUpload(bannerInput)) {
-        return; // Validation failed, error already shown
+    if (bannerInput.files[0]) {
+        const isValid = await validateFileUpload(bannerInput);
+        if (!isValid) {
+            return; // Validation failed, error already shown
+        }
     }
     
     surveyData.title = sanitizedTitle;
     document.getElementById('survey-title').textContent = surveyData.title;
     
     const bannerFile = bannerInput.files[0];
+    const formData = new FormData();
+    formData.append('title', sanitizedTitle);
+
     if (bannerFile) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            surveyData.banner = e.target.result;
-            const bannerImg = document.getElementById('banner-image');
-            bannerImg.src = surveyData.banner;
-            bannerImg.style.display = 'block';
-        };
-        reader.readAsDataURL(bannerFile);
+        formData.append('banner', bannerFile);
     }
-    
-    saveSurveyData();
-    showMessage('Basic settings saved successfully!', 'success');
+
+    fetch('/api/save-basic-settings', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            surveyData.title = sanitizedTitle;
+            document.getElementById('survey-title').textContent = surveyData.title;
+
+            if (data.bannerUrl) {
+                surveyData.banner = data.bannerUrl;
+                const bannerImg = document.getElementById('banner-image');
+                bannerImg.src = surveyData.banner;
+                bannerImg.style.display = 'block';
+                
+                // Update admin banner preview
+                const existingPreview = document.getElementById('current-banner-preview');
+                if (existingPreview) {
+                    existingPreview.remove();
+                }
+                
+                // Create new banner preview
+                const bannerPreview = document.createElement('div');
+                bannerPreview.id = 'current-banner-preview';
+                bannerPreview.innerHTML = `
+                    <div style="margin: 10px 0;">
+                        <label>Current Banner:</label>
+                        <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9;">
+                            <img src="${surveyData.banner}" alt="Current Banner" style="max-width: 200px; max-height: 100px; object-fit: contain;">
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Upload a new image to replace this banner</p>
+                        </div>
+                    </div>
+                `;
+                
+                // Insert before the banner upload input
+                const bannerUpload = document.getElementById('banner-upload');
+                const bannerGroup = bannerUpload.closest('.form-group');
+                bannerGroup.parentNode.insertBefore(bannerPreview, bannerGroup);
+            }
+            showMessage('Basic settings saved successfully!', 'success');
+        } else {
+            showMessage(data.message || 'Failed to save basic settings.', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving basic settings:', error);
+        showMessage('An error occurred while saving basic settings.', 'error');
+    });
 }
 
 // Introduction questions management
@@ -304,10 +336,10 @@ function removeIntroQuestion(index) {
     renderIntroQuestions();
 }
 
-function saveIntroQuestions() {
+async function saveIntroQuestions() {
     // Save the introduction text
     surveyData.introText = document.getElementById('intro-text-input').value;
-    saveSurveyData();
+    await saveSurveyData();
     showMessage('Introduction questions saved successfully!', 'success');
 }
 
@@ -442,8 +474,8 @@ function removeCategory(index) {
     renderCategories();
 }
 
-function saveCategoriesQuestions() {
-    saveSurveyData();
+async function saveCategoriesQuestions() {
+    await saveSurveyData();
     showMessage('Categories and questions saved successfully!', 'success');
 }
 
@@ -560,69 +592,102 @@ function removeScoringRange(index) {
     renderScoringRanges();
 }
 
-function saveScoringRanges() {
-    saveSurveyData();
+async function saveScoringRanges() {
+    await saveSurveyData();
     showMessage('Scoring ranges saved successfully!', 'success');
 }
 
 // Email settings
-function loadEmailSettings() {
-    const settings = surveyData.emailSettings;
-    document.getElementById('smtp-server').value = settings.smtpServer || '';
-    document.getElementById('smtp-port').value = settings.smtpPort || 587;
-    document.getElementById('email-username').value = settings.username || '';
-    document.getElementById('email-password').value = settings.password || '';
+async function loadEmailSettings() {
+    // Try to load email settings from server first
+    try {
+        const response = await fetch('/api/email-config');
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.emailConfig) {
+            const config = result.data.emailConfig;
+            const smtpServerElement = document.getElementById('smtpServer');
+            const smtpPortElement = document.getElementById('smtpPort');
+            const usernameElement = document.getElementById('username');
+            const passwordElement = document.getElementById('password');
+            
+            if (smtpServerElement) smtpServerElement.value = config.host || '';
+            if (smtpPortElement) smtpPortElement.value = config.port || 587;
+            if (usernameElement) usernameElement.value = (config.auth && config.auth.user) || '';
+            if (passwordElement) passwordElement.value = (config.auth && config.auth.pass) || '';
+            
+            console.log('Email settings loaded from server successfully');
+            return;
+        }
+    } catch (error) {
+        console.warn('Failed to load email settings from server:', error);
+    }
+    
+    // Fallback to local surveyData (for backward compatibility)
+    const settings = surveyData.emailSettings || {};
+    const smtpServerElement = document.getElementById('smtpServer');
+    const smtpPortElement = document.getElementById('smtpPort');
+    const usernameElement = document.getElementById('username');
+    const passwordElement = document.getElementById('password');
+    
+    // Handle both formats: server format (host, port, auth.user, auth.pass) and client format (smtpServer, smtpPort, username, password)
+    const smtpServer = settings.smtpServer || settings.host || '';
+    const smtpPort = settings.smtpPort || settings.port || 587;
+    const username = settings.username || (settings.auth && settings.auth.user) || '';
+    const password = settings.password || (settings.auth && settings.auth.pass) || '';
+    
+    if (smtpServerElement) smtpServerElement.value = smtpServer;
+    if (smtpPortElement) smtpPortElement.value = smtpPort;
+    if (usernameElement) usernameElement.value = username;
+    if (passwordElement) passwordElement.value = password;
 }
 
-async function saveEmailSettings() {
+async function saveEmailSettings(event) {
+    event.preventDefault();
+    console.log('Attempting to save email settings...');
+
     // Validate email input before saving
-    const emailInput = document.getElementById('email-username');
-    if (!validateEmailInput(emailInput)) {
+    const emailInput = document.getElementById('username');
+    if (emailInput && !validateEmailInput(emailInput, true)) {
         showMessage('Please fix the email validation errors before saving.', 'error');
         return;
     }
 
-    const rawSmtpServer = document.getElementById('smtp-server').value;
-    const rawSmtpPort = document.getElementById('smtp-port').value;
-    const rawUsername = document.getElementById('email-username').value;
-    const rawPassword = document.getElementById('email-password').value;
+    const emailForm = document.getElementById('admin-email');
+    const formData = new FormData(emailForm);
 
-    console.log('Raw input - SMTP Server:', rawSmtpServer);
-    console.log('Raw input - SMTP Port:', rawSmtpPort);
-    console.log('Raw input - Username:', rawUsername);
-
-    const emailSettings = {
-        smtpServer: sanitizeInput(rawSmtpServer.trim()),
-        smtpPort: parseInt(rawSmtpPort),
-        username: sanitizeInput(rawUsername.trim()),
-        password: rawPassword // Don't sanitize passwords
+    const settings = {
+        smtpServer: formData.get('smtpServer') || '',
+        smtpPort: formData.get('smtpPort') || '587',
+        username: formData.get('username') || '',
+        password: formData.get('password') || '',
     };
 
-    console.log('Processed settings - SMTP Server:', emailSettings.smtpServer);
-    console.log('Processed settings - SMTP Port:', emailSettings.smtpPort);
-    console.log('Processed settings - Username:', emailSettings.username);
-
     // Additional validation
-    if (!emailSettings.smtpServer) {
-        console.log('Validation failed: SMTP Server is empty. Value:', emailSettings.smtpServer);
+    if (!settings.smtpServer) {
         showMessage('SMTP server is required', 'error');
         return;
     }
 
-    if (!emailSettings.smtpPort || emailSettings.smtpPort < 1 || emailSettings.smtpPort > 65535) {
+    if (!settings.smtpPort || settings.smtpPort < 1 || settings.smtpPort > 65535) {
         showMessage('Please enter a valid SMTP port (1-65535)', 'error');
         return;
     }
 
-    if (!emailSettings.username) {
+    if (!settings.username) {
         showMessage('Email username is required', 'error');
         return;
     }
 
+    if (!settings.password) {
+        showMessage('Email password is required', 'error');
+        return;
+    }
+
     try {
-        // Save to local storage
-        surveyData.emailSettings = emailSettings;
-        saveSurveyData();
+        // Save to local storage first
+        surveyData.emailSettings = settings;
+        await saveSurveyData();
         
         // Configure server-side email
         const response = await fetch('/api/configure-email', {
@@ -630,7 +695,7 @@ async function saveEmailSettings() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(emailSettings)
+            body: JSON.stringify(settings)
         });
         
         const result = await response.json();
@@ -1020,7 +1085,17 @@ function drawResultsChart(results) {
 
 // Results actions
 async function emailResults() {
-    if (!surveyData.emailSettings.username) {
+    // Check email configuration from server
+    try {
+        const configResponse = await fetch('/api/email-config');
+        const configResult = await configResponse.json();
+        
+        if (!configResult.success || !configResult.data || !configResult.data.emailConfig || !configResult.data.emailConfig.auth || !configResult.data.emailConfig.auth.user) {
+            showMessage('Email settings not configured. Please contact the administrator.', 'error');
+            return;
+        }
+    } catch (error) {
+        console.error('Failed to check email configuration:', error);
         showMessage('Email settings not configured. Please contact the administrator.', 'error');
         return;
     }
@@ -1035,34 +1110,62 @@ async function emailResults() {
         return;
     }
     
-    // Ask if user wants to include PDF attachment
-    const includePDF = confirm('Would you like to include a PDF attachment with your results?');
+    // Ask user for email format preference
+    const sendAsPDF = confirm('Would you like to receive your results as a PDF attachment?\n\nClick "OK" for PDF attachment (recommended)\nClick "Cancel" for regular email format');
     
     try {
-        const loadingMessage = includePDF ? 'Generating PDF and sending email...' : 'Sending email...';
-        showMessage(loadingMessage, 'info');
+        showMessage(sendAsPDF ? 'Generating PDF and sending email...' : 'Sending email...', 'info');
         
         // Calculate current results
         const results = calculateResults();
         
-        const response = await fetch('/api/send-results', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                recipientEmail: email,
-                surveyTitle: surveyData.title,
-                results: results,
-                chartData: null, // Could include chart data if needed
-                includePDF: includePDF
-            })
-        });
+        // Add intro responses to results if they exist
+        if (userResponses.intro && Object.keys(userResponses.intro).length > 0) {
+            results.introResponses = userResponses.intro;
+        }
+        
+        let response;
+        
+        if (sendAsPDF) {
+            // Use the new PDF email endpoint
+            response = await fetch('/api/email-results-pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    recipientEmail: email,
+                    surveyTitle: surveyData.title,
+                    results: results
+                })
+            });
+        } else {
+            // Use the original email endpoint with custom template
+            const emailHtml = generateEmailHtml(results);
+            
+            response = await fetch('/api/email-results', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    recipientEmail: email,
+                    surveyTitle: surveyData.title,
+                    results: results,
+                    customTemplate: emailHtml,
+                    useCustomTemplate: true
+                })
+            });
+        }
         
         const result = await response.json();
         
         if (result.success) {
-            showMessage(result.message, 'success');
+            if (sendAsPDF) {
+                showMessage(`PDF results sent successfully to ${email}! Check your email for the PDF attachment.`, 'success');
+            } else {
+                showMessage(result.message, 'success');
+            }
         } else {
             showMessage('Failed to send email: ' + result.message, 'error');
         }
@@ -1201,8 +1304,28 @@ function restartSurvey() {
 }
 
 // Data persistence
-function saveSurveyData() {
+async function saveSurveyData() {
+    // Save to localStorage first (for immediate access)
     localStorage.setItem('surveyData', JSON.stringify(surveyData));
+    
+    // Also save to server for persistence
+    try {
+        const response = await fetch('/api/save-survey-data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ surveyData })
+        });
+        
+        if (!response.ok) {
+            console.warn('Failed to save survey data to server, but saved locally');
+        } else {
+            console.log('Survey data saved to both localStorage and server');
+        }
+    } catch (error) {
+        console.warn('Server not available, survey data saved locally only:', error);
+    }
 }
 
 async function loadSurveyData() {
@@ -1217,7 +1340,7 @@ async function loadSurveyData() {
         console.error('Error loading survey data:', error);
         // Use default data as a fallback
         console.log('Using default survey data');
-        loadDefaultSurveyData();
+        await loadDefaultSurveyData();
     }
 
     // Update UI with loaded data
@@ -1229,7 +1352,7 @@ async function loadSurveyData() {
     }
 }
 
-function loadDefaultSurveyData() {
+async function loadDefaultSurveyData() {
     surveyData = {
         title: 'The Answer Trap Risk Profile Survey',
         banner: '',
@@ -1383,7 +1506,7 @@ function loadDefaultSurveyData() {
     document.getElementById('survey-title').textContent = surveyData.title;
     
     // Save the default data to localStorage
-    saveSurveyData();
+    await saveSurveyData();
 }
 
 // Utility functions
@@ -1406,4 +1529,834 @@ function showMessage(message, type) {
     setTimeout(() => {
         messageDiv.remove();
     }, 5000);
+}
+
+// Email Report Template Management
+let emailTemplate = {
+    backgroundColor: '#ffffff',
+    headerImage: '',
+    footerImage: '',
+    headerText: 'Survey Results Report',
+    includeIntroQuestions: true,
+    includeCategoryTitles: true,
+    includeCategoryScores: true,
+    includeCategoryDescriptions: true,
+    includeRangeDescriptions: true,
+    includeOverallScore: true,
+    customSections: []
+};
+
+// Function to get current email template
+function getCurrentEmailTemplate() {
+    return emailTemplate;
+}
+
+async function initializeEmailTemplate() {
+    try {
+        // First try to load from server (persistent storage)
+        const response = await fetch('/api/email-template');
+        const result = await response.json();
+        
+        if (result.success && result.data.emailTemplate) {
+            emailTemplate = { ...emailTemplate, ...result.data.emailTemplate };
+            console.log('Email template loaded from server successfully');
+        } else {
+            // Fallback to localStorage
+            const savedTemplate = localStorage.getItem('emailTemplate');
+            if (savedTemplate) {
+                emailTemplate = { ...emailTemplate, ...JSON.parse(savedTemplate) };
+                console.log('Email template loaded from localStorage');
+                
+                // Save to server for future persistence
+                await saveEmailTemplate();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading email template from server, using localStorage fallback:', error);
+        
+        // Fallback to localStorage
+        const savedTemplate = localStorage.getItem('emailTemplate');
+        if (savedTemplate) {
+            emailTemplate = { ...emailTemplate, ...JSON.parse(savedTemplate) };
+        }
+    }
+    
+    // Populate form fields with current template values
+    populateEmailTemplateForm();
+}
+
+function populateEmailTemplateForm() {
+    // Background color
+    const bgColorInput = document.getElementById('template-bg-color');
+    const bgColorText = document.getElementById('template-bg-color-text');
+    if (bgColorInput && bgColorText) {
+        bgColorInput.value = emailTemplate.backgroundColor;
+        bgColorText.value = emailTemplate.backgroundColor;
+    }
+    
+    // Header text
+    const headerTextInput = document.getElementById('template-header-text');
+    if (headerTextInput) {
+        headerTextInput.value = emailTemplate.headerText;
+    }
+    
+    // Content options checkboxes
+    const checkboxes = {
+        'include-intro-questions': emailTemplate.includeIntroQuestions,
+        'include-category-titles': emailTemplate.includeCategoryTitles,
+        'include-category-scores': emailTemplate.includeCategoryScores,
+        'include-category-descriptions': emailTemplate.includeCategoryDescriptions,
+        'include-range-descriptions': emailTemplate.includeRangeDescriptions,
+        'include-overall-score': emailTemplate.includeOverallScore
+    };
+    
+    Object.entries(checkboxes).forEach(([id, checked]) => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.checked = checked;
+        }
+    });
+    
+    // Update image preview (for email template section)
+    updateImagePreview();
+    
+    // Update stored image previews for Email Report section
+    updateStoredImagePreviews();
+    
+    // Render custom sections
+    renderCustomSections();
+}
+
+// New function to display stored header and footer images in Email Report section
+function updateStoredImagePreviews() {
+    // Update header image preview
+    if (emailTemplate.headerImage) {
+        const headerPreview = document.getElementById('header-logo-preview');
+        if (headerPreview) {
+            headerPreview.innerHTML = `
+                <div class="image-preview-wrapper">
+                    <img src="${emailTemplate.headerImage}" alt="Stored Header Image" style="max-width: 100%; max-height: 200px; border-radius: 4px;">
+                    <div class="image-info">
+                        <span class="file-name">Stored Header Image</span>
+                        <span class="file-size">Previously uploaded</span>
+                    </div>
+                    <button type="button" onclick="clearStoredImage('header')" class="remove-image-btn">×</button>
+                </div>
+            `;
+            headerPreview.classList.add('has-image');
+        }
+    }
+    
+    // Update footer image preview
+    if (emailTemplate.footerImage) {
+        const footerPreview = document.getElementById('footer-logo-preview');
+        if (footerPreview) {
+            footerPreview.innerHTML = `
+                <div class="image-preview-wrapper">
+                    <img src="${emailTemplate.footerImage}" alt="Stored Footer Image" style="max-width: 100%; max-height: 200px; border-radius: 4px;">
+                    <div class="image-info">
+                        <span class="file-name">Stored Footer Image</span>
+                        <span class="file-size">Previously uploaded</span>
+                    </div>
+                    <button type="button" onclick="clearStoredImage('footer')" class="remove-image-btn">×</button>
+                </div>
+            `;
+            footerPreview.classList.add('has-image');
+        }
+    }
+}
+
+// Function to clear stored images
+function clearStoredImage(type) {
+    if (type === 'header') {
+        emailTemplate.headerImage = '';
+        const headerPreview = document.getElementById('header-logo-preview');
+        const headerInput = document.getElementById('header-logo');
+        if (headerPreview) {
+            headerPreview.innerHTML = '';
+            headerPreview.classList.remove('has-image');
+        }
+        if (headerInput) {
+            headerInput.value = '';
+        }
+    } else if (type === 'footer') {
+        emailTemplate.footerImage = '';
+        const footerPreview = document.getElementById('footer-logo-preview');
+        const footerInput = document.getElementById('footer-logo');
+        if (footerPreview) {
+            footerPreview.innerHTML = '';
+            footerPreview.classList.remove('has-image');
+        }
+        if (footerInput) {
+            footerInput.value = '';
+        }
+    }
+    
+    saveEmailTemplate();
+    showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} image cleared successfully`, 'success');
+}
+
+function updateTemplateBackgroundColor(input) {
+    const colorValue = input.value;
+    emailTemplate.backgroundColor = colorValue;
+    
+    // Update both color picker and text input
+    const bgColorInput = document.getElementById('template-bg-color');
+    const bgColorText = document.getElementById('template-bg-color-text');
+    
+    if (input.type === 'color') {
+        bgColorText.value = colorValue;
+    } else {
+        bgColorInput.value = colorValue;
+    }
+    
+    saveEmailTemplate();
+}
+
+function updateTemplateHeaderText() {
+    const headerTextInput = document.getElementById('template-header-text');
+    emailTemplate.headerText = headerTextInput.value;
+    saveEmailTemplate();
+}
+
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        // Check file size (limit to 2MB)
+        if (file.size > 2 * 1024 * 1024) {
+            showMessage('Image file size must be less than 2MB', 'error');
+            return;
+        }
+        
+        // Check file type
+        if (!file.type.startsWith('image/')) {
+            showMessage('Please select a valid image file', 'error');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            emailTemplate.headerImage = e.target.result;
+            updateImagePreview();
+            saveEmailTemplate();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function updateImagePreview() {
+    const preview = document.getElementById('image-preview');
+    if (!preview) return;
+    
+    if (emailTemplate.headerImage) {
+        preview.innerHTML = `<img src="${emailTemplate.headerImage}" alt="Header Image">`;
+        preview.classList.add('has-image');
+    } else {
+        preview.innerHTML = '<div class="image-preview-placeholder">No image selected</div>';
+        preview.classList.remove('has-image');
+    }
+}
+
+function removeHeaderImage() {
+    emailTemplate.headerImage = '';
+    updateImagePreview();
+    
+    // Clear file input
+    const fileInput = document.getElementById('template-header-image');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    
+    saveEmailTemplate();
+}
+
+// Email Report Template Image Preview Function
+// Optimize image for email compatibility
+function optimizeImageForEmail(imageDataUrl, fileName, callback) {
+    const img = new Image();
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate optimal dimensions (max 600px width for email compatibility)
+        const maxWidth = 600;
+        const maxHeight = 400;
+        let { width, height } = img;
+        
+        if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+        }
+        
+        if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress the image
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to JPEG with compression for smaller file size
+        const quality = 0.8; // 80% quality for good balance of size/quality
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        
+        callback(optimizedDataUrl);
+    };
+    
+    img.onerror = function() {
+        console.warn('Failed to optimize image, using original');
+        callback(imageDataUrl);
+    };
+    
+    img.src = imageDataUrl;
+}
+
+function previewReportImage(input, previewId) {
+    const file = input.files[0];
+    const previewContainer = document.getElementById(previewId);
+    
+    if (!file) {
+        if (previewContainer) {
+            previewContainer.innerHTML = '';
+            previewContainer.classList.remove('has-image');
+        }
+        return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        showMessage('Please select a valid image file', 'error');
+        input.value = '';
+        return;
+    }
+    
+    // Validate file size (limit to 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        showMessage('Image file size must be less than 5MB', 'error');
+        input.value = '';
+        return;
+    }
+    
+    // Create file reader
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        // Optimize image for email compatibility
+        optimizeImageForEmail(e.target.result, file.name, (optimizedImageData) => {
+            if (previewContainer) {
+                previewContainer.innerHTML = `
+                    <div class="image-preview-wrapper">
+                        <img src="${optimizedImageData}" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 4px;">
+                        <div class="image-info">
+                            <span class="file-name">${file.name}</span>
+                            <span class="file-size">${(file.size / 1024).toFixed(1)} KB</span>
+                        </div>
+                        <button type="button" onclick="removeReportImage('${input.id}', '${previewId}')" class="remove-image-btn">×</button>
+                    </div>
+                `;
+                previewContainer.classList.add('has-image');
+            }
+            
+            // Store the optimized image data for the email template
+            if (input.id === 'header-logo') {
+                emailTemplate.headerImage = optimizedImageData;
+                showMessage('Header image uploaded and will replace any previously stored image', 'success');
+            } else if (input.id === 'footer-logo') {
+                emailTemplate.footerImage = optimizedImageData;
+                showMessage('Footer image uploaded and will replace any previously stored image', 'success');
+            }
+            
+            saveEmailTemplate();
+        });
+    };
+    
+    reader.onerror = function() {
+        showMessage('Error reading image file', 'error');
+        input.value = '';
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+// Remove image function
+function removeReportImage(inputId, previewId) {
+    const input = document.getElementById(inputId);
+    const previewContainer = document.getElementById(previewId);
+    
+    if (input) {
+        input.value = '';
+    }
+    
+    if (previewContainer) {
+        previewContainer.innerHTML = '';
+        previewContainer.classList.remove('has-image');
+    }
+    
+    // Remove from email template
+    if (inputId === 'header-logo') {
+        emailTemplate.headerImage = null;
+    } else if (inputId === 'footer-logo') {
+        emailTemplate.footerImage = null;
+    }
+    
+    saveEmailTemplate();
+}
+
+function updateContentOption(checkbox) {
+    const optionMap = {
+        'include-intro-questions': 'includeIntroQuestions',
+        'include-category-titles': 'includeCategoryTitles',
+        'include-category-scores': 'includeCategoryScores',
+        'include-category-descriptions': 'includeCategoryDescriptions',
+        'include-range-descriptions': 'includeRangeDescriptions',
+        'include-overall-score': 'includeOverallScore'
+    };
+    
+    const templateKey = optionMap[checkbox.id];
+    if (templateKey) {
+        emailTemplate[templateKey] = checkbox.checked;
+        saveEmailTemplate();
+        console.log(`Updated ${templateKey} to ${checkbox.checked}`);
+    } else {
+        console.warn(`No mapping found for checkbox ID: ${checkbox.id}`);
+    }
+}
+
+function addCustomSection() {
+    const newSection = {
+        id: Date.now(),
+        type: 'text',
+        title: 'Custom Section',
+        content: '',
+        backgroundColor: '#f8f9fa',
+        textColor: '#333333'
+    };
+    
+    emailTemplate.customSections.push(newSection);
+    renderCustomSections();
+    saveEmailTemplate();
+}
+
+function renderCustomSections() {
+    const container = document.getElementById('custom-sections-container');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    emailTemplate.customSections.forEach((section, index) => {
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'custom-section-item';
+        sectionDiv.innerHTML = `
+            <div class="custom-section-header">
+                <div class="custom-section-title">Section ${index + 1}: ${section.title}</div>
+                <div class="custom-section-controls">
+                    <button type="button" onclick="moveCustomSection(${index}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button type="button" onclick="moveCustomSection(${index}, 1)" ${index === emailTemplate.customSections.length - 1 ? 'disabled' : ''}>↓</button>
+                    <button type="button" onclick="removeCustomSection(${index})" class="btn-danger">×</button>
+                </div>
+            </div>
+            <div class="custom-section-type">
+                <label>Section Type:</label>
+                <select onchange="updateCustomSectionType(${index}, this.value)">
+                    <option value="text" ${section.type === 'text' ? 'selected' : ''}>Text Content</option>
+                    <option value="spacer" ${section.type === 'spacer' ? 'selected' : ''}>Spacer</option>
+                    <option value="divider" ${section.type === 'divider' ? 'selected' : ''}>Divider Line</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Section Title:</label>
+                <input type="text" value="${section.title}" onchange="updateCustomSectionTitle(${index}, this.value)">
+            </div>
+            ${section.type === 'text' ? `
+                <div class="form-group">
+                    <label>Content:</label>
+                    <textarea rows="4" onchange="updateCustomSectionContent(${index}, this.value)">${section.content}</textarea>
+                </div>
+            ` : ''}
+            <div class="form-group">
+                <label>Background Color:</label>
+                <div class="color-input-group">
+                    <input type="color" value="${section.backgroundColor}" onchange="updateCustomSectionBgColor(${index}, this.value)">
+                    <input type="text" value="${section.backgroundColor}" onchange="updateCustomSectionBgColor(${index}, this.value)">
+                </div>
+            </div>
+            ${section.type === 'text' ? `
+                <div class="form-group">
+                    <label>Text Color:</label>
+                    <div class="color-input-group">
+                        <input type="color" value="${section.textColor}" onchange="updateCustomSectionTextColor(${index}, this.value)">
+                        <input type="text" value="${section.textColor}" onchange="updateCustomSectionTextColor(${index}, this.value)">
+                    </div>
+                </div>
+            ` : ''}
+        `;
+        container.appendChild(sectionDiv);
+    });
+}
+
+function updateCustomSectionType(index, type) {
+    emailTemplate.customSections[index].type = type;
+    renderCustomSections();
+    saveEmailTemplate();
+}
+
+function updateCustomSectionTitle(index, title) {
+    emailTemplate.customSections[index].title = title;
+    renderCustomSections();
+    saveEmailTemplate();
+}
+
+function updateCustomSectionContent(index, content) {
+    emailTemplate.customSections[index].content = content;
+    saveEmailTemplate();
+}
+
+function updateCustomSectionBgColor(index, color) {
+    emailTemplate.customSections[index].backgroundColor = color;
+    saveEmailTemplate();
+}
+
+function updateCustomSectionTextColor(index, color) {
+    emailTemplate.customSections[index].textColor = color;
+    saveEmailTemplate();
+}
+
+function moveCustomSection(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex >= 0 && newIndex < emailTemplate.customSections.length) {
+        const temp = emailTemplate.customSections[index];
+        emailTemplate.customSections[index] = emailTemplate.customSections[newIndex];
+        emailTemplate.customSections[newIndex] = temp;
+        renderCustomSections();
+        saveEmailTemplate();
+    }
+}
+
+function removeCustomSection(index) {
+    emailTemplate.customSections.splice(index, 1);
+    renderCustomSections();
+    saveEmailTemplate();
+}
+
+async function saveEmailTemplate() {
+    try {
+        // Save to localStorage for immediate use
+        localStorage.setItem('emailTemplate', JSON.stringify(emailTemplate));
+        
+        // Save to server for persistence across resets
+        const response = await fetch('/api/email-template', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ emailTemplate })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('Email template saved to server successfully');
+        } else {
+            console.warn('Failed to save email template to server:', result.message);
+            // Still continue since localStorage save succeeded
+        }
+    } catch (error) {
+        console.error('Error saving email template to server:', error);
+        // Still continue since localStorage save succeeded
+    }
+}
+
+async function resetEmailTemplate() {
+    if (confirm('Are you sure you want to reset the email template to default settings? This action cannot be undone.')) {
+        emailTemplate = {
+            backgroundColor: '#ffffff',
+            headerImage: '',
+            footerImage: '',
+            headerText: 'Survey Results Report',
+            includeIntroQuestions: true,
+            includeCategoryTitles: true,
+            includeCategoryScores: true,
+            includeCategoryDescriptions: true,
+            includeRangeDescriptions: true,
+            includeOverallScore: true,
+            customSections: []
+        };
+        
+        populateEmailTemplateForm();
+        await saveEmailTemplate(); // This will save to both localStorage and server
+        showMessage('Email template reset to default settings', 'success');
+    }
+}
+
+function previewEmailTemplate() {
+    console.log('previewEmailTemplate called');
+    console.log('emailTemplate:', emailTemplate);
+    
+    // Generate sample results for preview
+    const sampleResults = generateSampleResults();
+    console.log('sampleResults:', sampleResults);
+    
+    // Generate email HTML
+    const emailHtml = generateEmailHtml(sampleResults);
+    console.log('emailHtml generated, length:', emailHtml.length);
+    
+    // Show preview modal
+    showEmailPreview(emailHtml);
+}
+
+function generateSampleResults() {
+    return {
+        introResponses: {
+            'What is your current role?': 'Manager',
+            'How many years of experience do you have?': '6-10 years'
+        },
+        categoryScores: {
+            'Decision Making': {
+                score: 4,
+                maxScore: 6,
+                percentage: 67,
+                range: {
+                    title: 'Collaborative',
+                    description: 'You balance analysis with team input and consensus-building.',
+                    color: '#f39c12'
+                }
+            },
+            'Risk Assessment': {
+                score: 3,
+                maxScore: 6,
+                percentage: 50,
+                range: {
+                    title: 'Risk Balanced',
+                    description: 'You take a balanced approach, weighing both risks and opportunities.',
+                    color: '#f39c12'
+                }
+            }
+        },
+        totalScore: 7,
+        maxPossibleScore: 12,
+        percentage: 58
+    };
+}
+
+function generateEmailHtml(results) {
+    let html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Survey Results</title>
+            <!--[if mso]>
+            <noscript>
+                <xml>
+                    <o:OfficeDocumentSettings>
+                        <o:AllowPNG/>
+                        <o:PixelsPerInch>96</o:PixelsPerInch>
+                    </o:OfficeDocumentSettings>
+                </xml>
+            </noscript>
+            <![endif]-->
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: ${emailTemplate.backgroundColor}; font-family: Arial, sans-serif;">
+    `;
+    
+    // Header image with better email client compatibility
+    if (emailTemplate.headerImage) {
+        html += `
+            <div style="text-align: center; padding: 20px;">
+                <img src="${emailTemplate.headerImage}" 
+                     alt="Header Image" 
+                     style="max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 0 auto;"
+                     width="560"
+                     border="0">
+                <!--[if !mso]><!-->
+                <div style="display: none; font-size: 0; line-height: 0; max-height: 0; overflow: hidden;">
+                    [Header Image - If you cannot see this image, please enable images in your email client]
+                </div>
+                <!--<![endif]-->
+            </div>
+        `;
+    }
+    
+    // Header text
+    html += `
+        <div style="text-align: center; padding: 20px; background-color: #f8f9fa; margin: 20px; border-radius: 8px;">
+            <h1 style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: bold;">${emailTemplate.headerText}</h1>
+        </div>
+    `;
+    
+    // Introduction questions
+    if (emailTemplate.includeIntroQuestions && results.introResponses) {
+        html += `
+            <div style="margin: 20px; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                <h2 style="color: #2c3e50; font-size: 18px; margin-bottom: 15px; font-weight: bold;">Background Information</h2>
+        `;
+        Object.entries(results.introResponses).forEach(([question, answer]) => {
+            html += `
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #495057;">${question}</strong><br>
+                    <span style="color: #6c757d;">${answer}</span>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+    
+    // Overall score
+    if (emailTemplate.includeOverallScore) {
+        html += `
+            <div style="margin: 20px; padding: 20px; background-color: #e3f2fd; border-radius: 8px; text-align: center;">
+                <h2 style="color: #1976d2; font-size: 18px; margin-bottom: 15px; font-weight: bold;">Overall Score</h2>
+                <div style="font-size: 36px; font-weight: bold; color: #1976d2; margin-bottom: 10px;">
+                    ${results.percentage}%
+                </div>
+                <div style="color: #424242; font-size: 14px;">
+                    ${results.totalScore} out of ${results.maxPossibleScore} points
+                </div>
+            </div>
+        `;
+    }
+    
+    // Category scores
+    if (emailTemplate.includeCategoryScores && results.categoryScores) {
+        html += `
+            <div style="margin: 20px;">
+                <h2 style="color: #2c3e50; font-size: 18px; margin-bottom: 15px; font-weight: bold;">Category Results</h2>
+        `;
+        Object.entries(results.categoryScores).forEach(([categoryName, categoryData]) => {
+            html += `
+                <div style="margin-bottom: 20px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid ${categoryData.range.color};">
+                    <h3 style="color: #2c3e50; font-size: 16px; margin-bottom: 10px; font-weight: bold;">${categoryName}</h3>
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: ${categoryData.range.color};">${categoryData.range.title}</strong>
+                        <span style="float: right; color: #6c757d; font-weight: bold;">${categoryData.percentage}%</span>
+                    </div>
+                    ${emailTemplate.includeCategoryDescriptions ? `
+                        <div style="color: #495057; font-size: 14px; line-height: 1.5; clear: both;">
+                            ${categoryData.range.description}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+    
+    // Custom sections
+    emailTemplate.customSections.forEach(section => {
+        if (section.type === 'text') {
+            html += `
+                <div style="margin: 20px; padding: 20px; background-color: ${section.backgroundColor}; border-radius: 8px;">
+                    <h3 style="color: ${section.textColor}; font-size: 16px; margin-bottom: 10px; font-weight: bold;">${section.title}</h3>
+                    <div style="color: ${section.textColor}; line-height: 1.5; font-size: 14px;">
+                        ${section.content.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `;
+        } else if (section.type === 'spacer') {
+            html += `<div style="height: 30px; line-height: 30px; font-size: 1px;">&nbsp;</div>`;
+        } else if (section.type === 'divider') {
+            html += `
+                <div style="margin: 20px;">
+                    <hr style="border: none; height: 2px; background-color: ${section.backgroundColor}; margin: 0;">
+                </div>
+            `;
+        }
+    });
+    
+    // Footer image with better email client compatibility
+    if (emailTemplate.footerImage) {
+        html += `
+            <div style="text-align: center; padding: 20px;">
+                <img src="${emailTemplate.footerImage}" 
+                     alt="Footer Image" 
+                     style="max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 0 auto;"
+                     width="560"
+                     border="0">
+                <!--[if !mso]><!-->
+                <div style="display: none; font-size: 0; line-height: 0; max-height: 0; overflow: hidden;">
+                    [Footer Image - If you cannot see this image, please enable images in your email client]
+                </div>
+                <!--<![endif]-->
+            </div>
+        `;
+    }
+    
+    html += `
+            </div>
+        </body>
+        </html>
+    `;
+    
+    return html;
+}
+
+function showEmailPreview(emailHtml) {
+    console.log('showEmailPreview called');
+    const modal = document.getElementById('email-preview-modal');
+    const previewBody = document.getElementById('email-template-preview');
+    
+    console.log('modal element:', modal);
+    console.log('previewBody element:', previewBody);
+    
+    if (modal && previewBody) {
+        previewBody.innerHTML = emailHtml;
+        modal.classList.add('active');
+        console.log('Modal should now be visible');
+    } else {
+        console.error('Modal or preview body element not found');
+    }
+}
+
+function closeEmailPreview() {
+    const modal = document.getElementById('email-preview-modal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+}
+
+// Update the existing emailResults function to use the custom template
+async function emailResultsWithTemplate(results) {
+    try {
+        // Check email configuration first
+        const configResult = await fetch('/api/email-config');
+        const configData = await configResult.json();
+        
+        if (!configData.success || !configData.data.emailConfig.auth.user) {
+            showMessage('Email settings not configured. Please contact the administrator.', 'error');
+            return;
+        }
+        
+        // Generate custom email HTML
+        const emailHtml = generateEmailHtml(results);
+        
+        // Send email with custom template
+        const response = await fetch('/api/email-results', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                results: results,
+                surveyTitle: surveyData.title,
+                customTemplate: emailHtml,
+                useCustomTemplate: true
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showMessage('Results emailed successfully!', 'success');
+        } else {
+            showMessage('Failed to email results: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('Email error:', error);
+        showMessage('Failed to email results. Please try again or contact support.', 'error');
+    }
 }

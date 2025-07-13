@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug setRole Function</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .error { color: red; }
+        .success { color: green; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Debug setRole Function</h1>
+    
+    <div class="test-section">
+        <h3>Script Loading Test</h3>
+        <div id="script-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Function Availability Test</h3>
+        <button onclick="testSetRoleFunction()">Test setRole Function</button>
+        <div id="function-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Direct Function Call Test</h3>
+        <button onclick="setRole('admin')">Call setRole('admin')</button>
+        <button onclick="setRole('user')">Call setRole('user')</button>
+        <div id="call-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Comprehensive Function Test</h3>
+        <button onclick="runComprehensiveTest()">Run All Tests</button>
+        <div id="comprehensive-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Console Output</h3>
+        <div id="console-output"></div>
+    </div>
+
+    <!-- Load scripts in the same order as the main application -->
+    <script src="error-utils.js"></script>
+    <script src="validation-utils.js"></script>
+    <script src="script.js"></script>
+    <script src="test-functions.js"></script>
+    
+    <script>
+        // Override console.log to capture output
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const consoleOutput = document.getElementById('console-output');
+        
+        function addToConsoleOutput(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${type.toUpperCase()}] ${message}`;
+            consoleOutput.appendChild(div);
+        }
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            addToConsoleOutput(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addToConsoleOutput(args.join(' '), 'error');
+        };
+        
+        // Test script loading
+        document.addEventListener('DOMContentLoaded', function() {
+            const scriptStatus = document.getElementById('script-status');
+            
+            // Check if scripts loaded
+            const scripts = ['error-utils.js', 'validation-utils.js', 'script.js'];
+            let loadedScripts = [];
+            
+            scripts.forEach(script => {
+                const scriptElements = document.querySelectorAll(`script[src="${script}"]`);
+                if (scriptElements.length > 0) {
+                    loadedScripts.push(script);
+                }
+            });
+            
+            scriptStatus.innerHTML = `
+                <div class="success">Loaded scripts: ${loadedScripts.join(', ')}</div>
+                <div>Total scripts found: ${document.querySelectorAll('script').length}</div>
+            `;
+        });
+        
+        function testSetRoleFunction() {
+            const functionStatus = document.getElementById('function-status');
+            
+            try {
+                if (typeof setRole === 'function') {
+                    functionStatus.innerHTML = '<div class="success">✅ setRole function is defined and accessible</div>';
+                } else {
+                    functionStatus.innerHTML = '<div class="error">❌ setRole function is not defined</div>';
+                }
+                
+                // Check other functions too
+                const functions = ['showScreen', 'initializeAdminInterface', 'initializeSurvey'];
+                functions.forEach(func => {
+                    const status = typeof window[func] === 'function' ? '✅' : '❌';
+                    functionStatus.innerHTML += `<div>${status} ${func}: ${typeof window[func]}</div>`;
+                });
+                
+            } catch (error) {
+                functionStatus.innerHTML = `<div class="error">Error testing function: ${error.message}</div>`;
+            }
+        }
+        
+        // Test function calls
+        window.addEventListener('error', function(event) {
+            addToConsoleOutput(`JavaScript Error: ${event.message} at ${event.filename}:${event.lineno}`, 'error');
+        });
+        
+        // Auto-run tests after a short delay
+        setTimeout(() => {
+            testSetRoleFunction();
+        }, 1000);
+        
+        function runComprehensiveTest() {
+            const resultsDiv = document.getElementById('comprehensive-results');
+            resultsDiv.innerHTML = '<div>Running comprehensive tests... Check console for details.</div>';
+            
+            // Clear console output
+            consoleOutput.innerHTML = '';
+            
+            // Run the comprehensive test (defined in test-functions.js)
+            // The test will automatically log to console which we capture
+        }
+    </script>
+</body>
+</html>

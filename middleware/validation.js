@@ -194,17 +194,24 @@ const securityMiddleware = [addNonce, createCSPMiddleware()];
 
 // Input sanitization middleware
 const sanitizeInput = (req, res, next) => {
-    const sanitizeObject = (obj) => {
+    // Fields that should not be HTML-escaped (contain intentional HTML content)
+    const htmlFields = ['customTemplate'];
+    
+    const sanitizeObject = (obj, currentKey = '') => {
         if (typeof obj === 'string') {
+            // Don't escape HTML for fields that contain intentional HTML content
+            if (htmlFields.includes(currentKey)) {
+                return obj.trim();
+            }
             return validator.escape(obj.trim());
         }
         if (Array.isArray(obj)) {
-            return obj.map(item => sanitizeObject(item));
+            return obj.map(item => sanitizeObject(item, currentKey));
         }
         if (typeof obj === 'object' && obj !== null) {
             const sanitized = {};
             for (const [key, value] of Object.entries(obj)) {
-                sanitized[key] = sanitizeObject(value);
+                sanitized[key] = sanitizeObject(value, key);
             }
             return sanitized;
         }

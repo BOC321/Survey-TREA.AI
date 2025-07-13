@@ -260,7 +260,7 @@ describe('API Integration Tests', () => {
       const mockTransporter = {
         sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' })
       };
-      nodemailer.createTransporter = jest.fn().mockReturnValue(mockTransporter);
+      nodemailer.createTransport = jest.fn().mockReturnValue(mockTransporter);
     });
     
     describe('POST /api/survey/send-results', () => {
@@ -330,7 +330,7 @@ describe('API Integration Tests', () => {
         const mockTransporter = {
           sendMail: jest.fn().mockRejectedValue(new Error('SMTP error'))
         };
-        nodemailer.createTransporter.mockReturnValue(mockTransporter);
+        nodemailer.createTransport.mockReturnValue(mockTransporter);
         
         const response = await request(app)
           .post('/api/survey/send-results')

@@ -586,3 +586,298 @@ body {
     color: #0c5460;
     border: 1px solid #bee5eb;
 }
+
+/* Email Report Template Styles */
+.email-report-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.template-settings,
+.template-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #3498db;
+}
+
+.template-settings h4,
+.template-section h4 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 8px;
+}
+
+.color-input-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.color-input-group input[type="color"] {
+    width: 50px;
+    height: 40px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.color-input-group input[type="text"] {
+    flex: 1;
+    max-width: 120px;
+}
+
+.image-preview {
+    margin-top: 10px;
+    padding: 10px;
+    border: 2px dashed #dee2e6;
+    border-radius: 5px;
+    text-align: center;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+}
+
+.image-preview img {
+    max-width: 200px;
+    max-height: 100px;
+    object-fit: contain;
+    border-radius: 5px;
+}
+
+.image-preview.has-image {
+    border-style: solid;
+    border-color: #3498db;
+    background: white;
+}
+
+.image-preview-placeholder {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.content-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: white;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.checkbox-group:hover {
+    border-color: #3498db;
+    background: #f0f8ff;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.checkbox-group label {
+    margin: 0;
+    cursor: pointer;
+    font-weight: normal;
+    color: #495057;
+}
+
+.custom-section-item {
+    background: white;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.custom-section-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.custom-section-title {
+    font-weight: bold;
+    color: #2c3e50;
+    flex: 1;
+}
+
+.custom-section-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.custom-section-type {
+    margin-bottom: 15px;
+}
+
+.custom-section-type select {
+    width: 200px;
+}
+
+.template-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.preview-btn {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-btn:hover {
+    background: #138496;
+    transform: translateY(-2px);
+}
+
+.reset-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reset-btn:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+/* Email Preview Modal */
+.email-preview-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.email-preview-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.email-preview-content {
+    background: white;
+    border-radius: 10px;
+    max-width: 800px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.email-preview-header {
+    padding: 20px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 10px 10px 0 0;
+}
+
+.email-preview-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.close-preview {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.2em;
+}
+
+.close-preview:hover {
+    background: #c0392b;
+}
+
+.email-preview-body {
+    padding: 20px;
+}
+
+.email-template-preview {
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+/* Responsive adjustments for email report */
+@media (max-width: 768px) {
+    .email-report-container {
+        padding: 0 10px;
+    }
+    
+    .color-input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .color-input-group input[type="text"] {
+        max-width: none;
+    }
+    
+    .content-options {
+        grid-template-columns: 1fr;
+    }
+    
+    .template-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .email-preview-modal {
+        padding: 10px;
+    }
+    
+    .email-preview-content {
+        max-height: 95vh;
+    }
+}

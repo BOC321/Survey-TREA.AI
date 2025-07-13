@@ -164,33 +164,53 @@ const requestTimer = (req, res, next) => {
 
 // Global error handler middleware
 const globalErrorHandler = (error, req, res, next) => {
-    // Log the error
-    logError(error, {
+    // Enhanced error context
+    const errorContext = {
         method: req.method,
         url: req.url,
         ip: req.ip,
         userAgent: req.get('User-Agent'),
-        body: req.body
-    });
+        body: req.body,
+        params: req.params,
+        query: req.query,
+        headers: req.headers
+    };
+    
+    // Log the error with enhanced context
+    logError(error, errorContext);
+    
+    // Console log for immediate debugging
+    console.error('=== ERROR HANDLER ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('Request:', `${req.method} ${req.url}`);
+    console.error('Status Code:', error.statusCode || 500);
+    console.error('Error Type:', error.name);
+    console.error('===================');
     
     // Handle specific error types
     if (error.name === 'ValidationError') {
+        console.log('Validation Error - returning 400');
         return validationErrorResponse(res, error.errors, error.message);
     }
     
     if (error.name === 'CastError') {
+        console.log('Cast Error - returning 400');
         return badRequestResponse(res, 'Invalid data format');
     }
     
     if (error.code === 'ENOENT') {
+        console.log('File Not Found Error - returning 404');
         return notFoundResponse(res, 'File not found');
     }
     
     if (error.code === 'EACCES') {
+        console.log('Access Denied Error - returning 403');
         return forbiddenResponse(res, 'Access denied');
     }
     
     // Default to internal server error
+    console.log('Unhandled Error - returning 500');
     return internalServerErrorResponse(res, error.message, error);
 };
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Answer Trap Risk Profile Survey</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=<%= Date.now() %>">
     <style nonce="<%= nonce %>">
         /* Validation styles */
         .validation-error {
@@ -50,6 +50,7 @@
                     <button onclick="showAdminSection('categories')" class="nav-btn">Categories & Questions</button>
                     <button onclick="showAdminSection('scoring')" class="nav-btn">Scoring & Ranges</button>
                     <button onclick="showAdminSection('email')" class="nav-btn">Email Settings</button>
+                    <button onclick="showAdminSection('email-report')" class="nav-btn">📧 Email Report</button>
                     <button onclick="openAnalyticsDashboard()" class="nav-btn analytics-btn">📊 Analytics Dashboard</button>
                 </nav>
 
@@ -62,7 +63,7 @@
                     </div>
                     <div class="form-group">
                         <label for="banner-upload">Banner Image:</label>
-                        <input type="file" id="banner-upload" accept="image/*" onchange="validateFileUpload(this)">
+                        <input type="file" id="banner-upload" name="banner" accept="image/*" onchange="handleFileUploadChange(this)">
                         <span class="validation-error" id="banner-upload-error"></span>
                     </div>
                     <button onclick="saveBasicSettings()" class="save-btn">Save Basic Settings</button>
@@ -103,26 +104,144 @@
                 </div>
 
                 <!-- Email Settings -->
-                <div id="admin-email" class="admin-section">
+                <form id="admin-email" class="admin-section" onsubmit="saveEmailSettings(event)">
                     <h3>Email Configuration</h3>
                     <div class="form-group">
-                        <label for="smtp-server">SMTP Server:</label>
-                        <input type="text" id="smtp-server" placeholder="smtp.gmail.com">
+                        <label for="smtpServer">SMTP Server:</label>
+                        <input type="text" id="smtpServer" name="smtpServer" placeholder="smtp.gmail.com">
                     </div>
                     <div class="form-group">
-                        <label for="smtp-port">SMTP Port:</label>
-                        <input type="number" id="smtp-port" value="587">
+                        <label for="smtpPort">SMTP Port:</label>
+                        <input type="number" id="smtpPort" name="smtpPort" value="587">
                     </div>
                     <div class="form-group">
-                        <label for="email-username">Email Username:</label>
-                        <input type="email" id="email-username" onblur="validateEmailInput(this)">
-                        <span class="validation-error" id="email-username-error"></span>
+                        <label for="username">Email Username:</label>
+                        <input type="email" id="username" name="username" onblur="validateEmailInput(this, true)">
+                        <span class="validation-error" id="username-error"></span>
                     </div>
                     <div class="form-group">
-                        <label for="email-password">Email Password:</label>
-                        <input type="password" id="email-password">
+                        <label for="password">Email Password:</label>
+                        <input type="password" id="password" name="password">
                     </div>
-                    <button onclick="saveEmailSettings()" class="save-btn">Save Email Settings</button>
+                    <button type="submit" class="save-btn">Save Email Settings</button>
+                </form>
+
+                <!-- Email Report Template -->
+                <div id="admin-email-report" class="admin-section">
+                    <h3>Email Report Template</h3>
+                    <div class="email-report-container">
+                        <!-- Template Settings -->
+                        <div class="template-section">
+                            <h4>Template Settings</h4>
+                            
+                            <div class="form-group">
+                                <label for="report-bg-color">Background Color:</label>
+                                <div class="color-input-group">
+                                    <input type="color" id="report-bg-color" value="#ffffff">
+                                    <input type="text" id="report-bg-color-text" value="#ffffff" placeholder="#ffffff">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="report-text-color">Text Color:</label>
+                                <div class="color-input-group">
+                                    <input type="color" id="report-text-color" value="#333333">
+                                    <input type="text" id="report-text-color-text" value="#333333" placeholder="#333333">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Header Section -->
+                        <div class="template-section">
+                            <h4>Header Section</h4>
+                            
+                            <div class="form-group">
+                                <label for="header-logo">Header Logo/Image:</label>
+                                <input type="file" id="header-logo" accept="image/*" onchange="previewReportImage(this, 'header-logo-preview')">
+                                <div id="header-logo-preview" class="image-preview"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="header-title">Header Title:</label>
+                                <input type="text" id="header-title" placeholder="Survey Results Report" value="Survey Results Report">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="header-text">Header Text:</label>
+                                <textarea id="header-text" rows="3" placeholder="Thank you for completing our survey. Here are your personalized results..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Content Sections -->
+                        <div class="template-section">
+                            <h4>Content Configuration</h4>
+                            
+                            <div class="content-options">
+                                <div class="checkbox-group">
+                                    <label>
+                                        <input type="checkbox" id="include-category-titles" checked onchange="updateContentOption(this)">
+                                        Include Category Titles
+                                    </label>
+                                </div>
+                                
+                                <div class="checkbox-group">
+                                    <label>
+                                        <input type="checkbox" id="include-category-scores" checked onchange="updateContentOption(this)">
+                                        Include Category Scores
+                                    </label>
+                                </div>
+                                
+                                <div class="checkbox-group">
+                                    <label>
+                                        <input type="checkbox" id="include-range-descriptions" checked onchange="updateContentOption(this)">
+                                        Include Range Descriptions
+                                    </label>
+                                </div>
+                                
+                                <div class="checkbox-group">
+                                    <label>
+                                        <input type="checkbox" id="include-overall-score" checked onchange="updateContentOption(this)">
+                                        Include Overall Score
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom Content Sections -->
+                        <div class="template-section">
+                            <h4>Custom Content Sections</h4>
+                            <div id="custom-sections-container">
+                                <!-- Dynamic custom sections will be added here -->
+                            </div>
+                            <button type="button" onclick="addCustomSection()" class="add-btn">Add Custom Section</button>
+                        </div>
+
+                        <!-- Footer Section -->
+                        <div class="template-section">
+                            <h4>Footer Section</h4>
+                            
+                            <div class="form-group">
+                                <label for="footer-text">Footer Text:</label>
+                                <textarea id="footer-text" rows="3" placeholder="Thank you for your participation. For questions, contact us at..."></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="footer-logo">Footer Logo/Image:</label>
+                                <input type="file" id="footer-logo" accept="image/*" onchange="previewReportImage(this, 'footer-logo-preview')">
+                                <div id="footer-logo-preview" class="image-preview"></div>
+                            </div>
+                        </div>
+
+                        <!-- Preview and Actions -->
+                        <div class="template-actions">
+                            <div class="info-note" style="background: #e8f5e8; border: 1px solid #4caf50; border-radius: 4px; padding: 10px; margin-bottom: 15px; font-size: 14px;">
+                                <strong>💾 Persistent Storage:</strong> Your email template configuration is automatically saved to the server and will be preserved even when the survey is reset or the application is restarted.
+                            </div>
+                            <button type="button" onclick="previewEmailTemplate()" class="preview-btn">📧 Preview Report</button>
+                            <button type="button" onclick="saveEmailTemplate()" class="save-btn">💾 Save Template</button>
+                            <button type="button" onclick="resetEmailTemplate()" class="reset-btn">🔄 Reset to Default</button>
+                        </div>
+                    </div>
                 </div>
 
                 <button onclick="backToLogin()" class="back-btn">Back to Login</button>
@@ -158,7 +277,28 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Email Preview Modal -->
+    <div id="email-preview-modal" class="email-preview-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Email Report Preview</h3>
+                <button type="button" onclick="closeEmailPreview()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="email-template-preview" class="email-preview-content">
+                    <!-- Email preview content will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeEmailPreview()" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Utility Scripts -->
+    <script src="error-utils.js?v=<%= Date.now() %>"></script>
+    <script src="validation-utils.js?v=<%= Date.now() %>"></script>
+    <script src="script.js?v=<%= Date.now() %>"></script>
     
     <!-- Service Worker Registration -->
     <script nonce="<%= nonce %>">
